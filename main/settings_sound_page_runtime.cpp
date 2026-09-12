@@ -1,23 +1,23 @@
-#include "settings_page_runtime.h"
+#include "settings_sound_page_runtime.h"
 
-#include <atomic>
 #include <mutex>
 
+#include "esp_log.h"
+#include "feedback_service.h"
 #include "page_navigation/navigation_model.h"
 #include "page_navigation/page_focus_projection.h"
-#include "settings_page_coordinator.h"
-#include "settings_page_interactions.h"
+#include "recording_session_service.h"
+#include "settings_sound_page_coordinator.h"
+#include "settings_sound_page_interactions.h"
 #include "ui_refresh_runtime.h"
 
-namespace settings_page_runtime {
+namespace settings_sound_page_runtime {
 namespace {
 
+constexpr const char* kTag = "SettingsSoundPage";
+
 std::mutex s_mutex;
-SettingsPageCoordinator s_coordinator = {};
-std::atomic<bool> s_pending_show_storage = false;
-std::atomic<bool> s_pending_show_todos = false;
-std::atomic<bool> s_pending_show_topics = false;
-std::atomic<bool> s_pending_show_sound = false;
+SettingsSoundPageCoordinator s_coordinator = {};
 
 footer_runtime::FooterFocusItem FooterItemForSelectedIndex(int selected_index)
 {
@@ -60,12 +60,9 @@ page_navigation::NavigationItemRole FooterRoleForFooterItem(footer_runtime::Foot
 
 footer_runtime::ProjectionState BuildFooterProjectionStateLocked()
 {
-    const page_navigation::PageFocusProjection projection =
-        page_navigation::ProjectPageFocus(s_coordinator.navigation_model(),
-                                          page_navigation::NavigationItemSection::kSettingsPageMenu,
-                                          s_coordinator.focus().index(),
-                                          -1,
-                                          -1);
+    const page_navigation::PageFocusProjection projection = page_navigation::ProjectPageFocus(
+        s_coordinator.navigation_model(), page_navigation::NavigationItemSection::kNone,
+        s_coordinator.focus().index(), -1, -1);
     footer_runtime::ProjectionState state = {};
     state.focused_item = FooterItemForSelectedIndex(projection.footer_selected_index);
     return state;
@@ -73,25 +70,22 @@ footer_runtime::ProjectionState BuildFooterProjectionStateLocked()
 
 bool FooterProjectionChangedForFocusIndexes(int old_focus_index, int new_focus_index)
 {
-    const page_navigation::PageFocusProjection old_projection =
-        page_navigation::ProjectPageFocus(s_coordinator.navigation_model(),
-                                          page_navigation::NavigationItemSection::kSettingsPageMenu,
-                                          old_focus_index,
-                                          -1,
-                                          -1);
-    const page_navigation::PageFocusProjection new_projection =
-        page_navigation::ProjectPageFocus(s_coordinator.navigation_model(),
-                                          page_navigation::NavigationItemSection::kSettingsPageMenu,
-                                          new_focus_index,
-                                          -1,
-                                          -1);
+    const page_navigation::PageFocusProjection old_projection = page_navigation::ProjectPageFocus(
+        s_coordinator.navigation_model(), page_navigation::NavigationItemSection::kNone,
+        old_focus_index, -1, -1);
+    const page_navigation::PageFocusProjection new_projection = page_navigation::ProjectPageFocus(
+        s_coordinator.navigation_model(), page_navigation::NavigationItemSection::kNone,
+        new_focus_index, -1, -1);
     return FooterItemForSelectedIndex(old_projection.footer_selected_index) !=
            FooterItemForSelectedIndex(new_projection.footer_selected_index);
 }
 
-epaper_ui::SettingsPageState BuildStateLocked()
+epaper_ui::SettingsSoundPageState BuildStateLocked()
 {
-    return s_coordinator.BuildState();
+    // Read straight from the owning services rather than caching a copy here, so the row always
+    // reflects what actually persisted -- including a write that failed.
+    return s_coordinator.BuildState(feedback_service::IsSoundEnabled(),
+                                    recording_session_service::IsReviewPlaybackEnabled());
 }
 
 }  // namespace
@@ -99,21 +93,20 @@ epaper_ui::SettingsPageState BuildStateLocked()
 esp_err_t UpdateDisplayState()
 {
     std::lock_guard<std::mutex> lock(s_mutex);
-    return display_service::SetSettingsPageState(BuildStateLocked());
+    return display_service::SetSettingsSoundPageState(BuildStateLocked());
 }
 
 esp_err_t UpdateDisplayStateAndRequestRefresh(display_service::RefreshMode refresh_mode)
 {
-    return UpdateDisplayStateAndRequestRefresh(display_service::RefreshRequest{
-        .refresh_mode = refresh_mode,
-    });
+    return UpdateDisplayStateAndRequestRefresh(
+        display_service::RefreshRequest{.refresh_mode = refresh_mode});
 }
 
 esp_err_t UpdateDisplayStateAndRequestRefresh(
     const display_service::RefreshRequest& refresh_request)
 {
-    return ui_refresh_runtime::Schedule(
-        ui_refresh_runtime::SurfaceKey::kSettingsPage, &UpdateDisplayState, refresh_request);
+    return ui_refresh_runtime::Schedule(ui_refresh_runtime::SurfaceKey::kSettingsSoundPage,
+                                        &UpdateDisplayState, refresh_request);
 }
 
 page_actions::FocusMoveOutcome MoveFocus(int delta)
@@ -124,7 +117,7 @@ page_actions::FocusMoveOutcome MoveFocus(int delta)
     {
         std::lock_guard<std::mutex> lock(s_mutex);
         old_focus_index = s_coordinator.focus().index();
-        result = settings_page_interactions::HandleMoveFocus(s_coordinator, delta);
+        result = settings_sound_page_interactions::HandleMoveFocus(s_coordinator, delta);
         if (!result.handled) {
             return result;
         }
@@ -136,10 +129,10 @@ page_actions::FocusMoveOutcome MoveFocus(int delta)
     return result;
 }
 
-settings_page_interactions::ActivateResult ActivateFocusedItem()
+settings_sound_page_interactions::ActivateResult ActivateFocusedItem()
 {
     std::lock_guard<std::mutex> lock(s_mutex);
-    return settings_page_interactions::HandlePrimaryActivate(s_coordinator);
+    return settings_sound_page_interactions::HandlePrimaryActivate(s_coordinator);
 }
 
 footer_runtime::ProjectionState BuildFooterProjectionState()
@@ -151,8 +144,7 @@ footer_runtime::ProjectionState BuildFooterProjectionState()
 page_actions::FocusUpdateOutcome FocusFooterItem(footer_runtime::FooterFocusItem item)
 {
     page_actions::FocusUpdateOutcome result = {};
-    const page_navigation::NavigationItemRole role =
-        FooterRoleForFooterItem(item);
+    const page_navigation::NavigationItemRole role = FooterRoleForFooterItem(item);
     if (role == page_navigation::NavigationItemRole::kUnknown) {
         return result;
     }
@@ -190,44 +182,42 @@ void ResetFocus()
     footer_runtime::SetProjectionState(projection);
 }
 
-void RequestShowStorage()
+namespace {
+
+// Each toggle also drives a footer indicator, and the footer is drawn as part of this page's
+// own render pass -- so refreshing the footer's state before scheduling the page repaint gets
+// both in a single refresh rather than two.
+esp_err_t RepaintPageAndFooter()
 {
-    s_pending_show_storage.store(true, std::memory_order_relaxed);
+    const esp_err_t footer_err = footer_runtime::UpdateDisplayState();
+    if (footer_err != ESP_OK && footer_err != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(kTag, "Footer sync after toggle failed: %s", esp_err_to_name(footer_err));
+    }
+    return UpdateDisplayStateAndRequestRefresh(display_service::RefreshMode::kPartial);
 }
 
-bool ConsumePendingShowStorage()
+}  // namespace
+
+esp_err_t ToggleSoundFeedback()
 {
-    return s_pending_show_storage.exchange(false, std::memory_order_relaxed);
+    const bool next = !feedback_service::IsSoundEnabled();
+    const esp_err_t err = feedback_service::SetSoundEnabled(next);
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "Sound feedback toggle failed: %s", esp_err_to_name(err));
+    }
+    // Repaint either way: on failure the row redraws at the unchanged value rather than showing
+    // a state that was never stored.
+    return RepaintPageAndFooter();
 }
 
-void RequestShowTodos()
+esp_err_t ToggleReviewPlayback()
 {
-    s_pending_show_todos.store(true, std::memory_order_relaxed);
+    const bool next = !recording_session_service::IsReviewPlaybackEnabled();
+    const esp_err_t err = recording_session_service::SetReviewPlaybackEnabled(next);
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "Review playback toggle failed: %s", esp_err_to_name(err));
+    }
+    return RepaintPageAndFooter();
 }
 
-bool ConsumePendingShowTodos()
-{
-    return s_pending_show_todos.exchange(false, std::memory_order_relaxed);
-}
-
-void RequestShowTopics()
-{
-    s_pending_show_topics.store(true, std::memory_order_relaxed);
-}
-
-bool ConsumePendingShowTopics()
-{
-    return s_pending_show_topics.exchange(false, std::memory_order_relaxed);
-}
-
-void RequestShowSound()
-{
-    s_pending_show_sound.store(true, std::memory_order_relaxed);
-}
-
-bool ConsumePendingShowSound()
-{
-    return s_pending_show_sound.exchange(false, std::memory_order_relaxed);
-}
-
-}  // namespace settings_page_runtime
+}  // namespace settings_sound_page_runtime

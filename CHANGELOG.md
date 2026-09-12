@@ -7,6 +7,30 @@ via `git log`, not backfilled here.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-12
+
+### Added
+
+- A **Sound & Recording** page under Settings, with two switches that are
+  remembered across reboots:
+  - **Button sounds** turns off the cues played for button presses, lock and
+    unlock, menus opening, startup and shutdown, and errors. The recording
+    start and stop cues deliberately keep playing: their completion callbacks
+    drive the recording phase machine, so suppressing them would strand a take
+    mid-session, and they are also the only signal that a recording began or
+    ended while the screen isn't being watched.
+  - **Play back after recording** turns off the replay of a take before the tag
+    menu opens. Discard is unaffected, since nothing reaches the SD card until a
+    tag is chosen.
+- Footer status indicators for both settings: a crossed-out icon appears to the
+  left of the mic while sound or playback is switched off, and is hidden while
+  they are on. These are status glyphs, not controls, so roving focus skips
+  them.
+
+### Changed
+
+- The Settings hub now lists six headings instead of five.
+
 ## [0.3.1] - 2026-09-12
 
 ### Fixed

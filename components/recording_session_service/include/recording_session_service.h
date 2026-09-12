@@ -101,6 +101,16 @@ using EventHandler = void (*)(const Event& event, void* context);
 
 esp_err_t Init();
 void SetEventHandler(EventHandler handler, void* context);
+
+// Whether a finished take is replayed to the user before the tag menu opens. Off sends the
+// session straight from the stop cue to tag selection. Persisted in NVS, cached in memory,
+// and settable from Settings -> Sound & Recording.
+//
+// Turning this off does NOT remove the ability to throw away a bad take: the clip is still
+// unsaved at tag-selection time, and Discard in the tag menu is what drops it. What is lost
+// is the chance to hear the take before making that call.
+bool IsReviewPlaybackEnabled();
+esp_err_t SetReviewPlaybackEnabled(bool enabled);
 // Mirrors gemini_service/timezone_service's network hook: gemini_service's `ready` flag
 // reflects "configured and has authenticated at some point", not live connectivity, so it
 // stays true across a later Wi-Fi disconnect. Without this, a note recorded with Wi-Fi off

@@ -8,6 +8,7 @@
 #include "epaper_ui/layout_grid.h"
 #include "epaper_ui/mic_status.h"
 #include "project_assets.h"
+#include "render_utils.h"
 
 namespace epaper_ui {
 namespace {
@@ -152,6 +153,51 @@ UiRect MicBounds(int portrait_width, int portrait_height, const GlobalFooterStat
             measured.height};
 }
 
+constexpr int kIndicatorSize = design::icon::k36;
+constexpr int kIndicatorGap = design::spacing::k8;
+
+// Right-to-left from the mic's left edge: slot 0 sits nearest the mic. Only visible indicators
+// take a slot, so hiding one closes the gap rather than leaving a hole.
+UiRect IndicatorBounds(int portrait_width,
+                       int portrait_height,
+                       const GlobalFooterState& state,
+                       int slot)
+{
+    if (slot < 0) {
+        return {};
+    }
+    const UiRect mic_bounds = MicBounds(portrait_width, portrait_height, state);
+    const int right = mic_bounds.x - kIndicatorGap - (slot * (kIndicatorSize + kIndicatorGap));
+    return {right - kIndicatorSize,
+            mic_bounds.y + CenterOffset(mic_bounds.height, kIndicatorSize),
+            kIndicatorSize,
+            kIndicatorSize};
+}
+
+// Diagonal stroke from bottom-left to top-right, the conventional "off" mark. Drawn pixel by
+// pixel because render_utils has no line primitive.
+void DrawSlash(uint8_t* framebuffer,
+               int raw_width,
+               int raw_height,
+               int portrait_width,
+               int portrait_height,
+               const UiRect& bounds)
+{
+    if (bounds.IsEmpty()) {
+        return;
+    }
+    constexpr int kThickness = 3;
+    const int span = std::min(bounds.width, bounds.height);
+    for (int step = 0; step < span; ++step) {
+        const int x = bounds.x + step;
+        const int y = bounds.bottom() - 1 - step;
+        for (int t = 0; t < kThickness; ++t) {
+            DrawPortraitPixel(framebuffer, raw_width, raw_height, portrait_width, portrait_height,
+                              x, y + t, true);
+        }
+    }
+}
+
 UiRect FooterButtonBounds(int portrait_width,
                           int portrait_height,
                           const GlobalFooterState& state,
@@ -273,6 +319,25 @@ void DrawGlobalFooter(uint8_t* framebuffer,
 
     if (!state.mic.visible) {
         return;
+    }
+
+    // Indicators first: they are positioned relative to the mic, and packing them right-to-left
+    // means the slot index depends on how many earlier ones are visible.
+    int indicator_slot = 0;
+    const FooterStatusIndicatorState* indicators[] = {&state.sound_muted, &state.playback_off};
+    for (const FooterStatusIndicatorState* indicator : indicators) {
+        if (!indicator->visible || indicator->icon == nullptr) {
+            continue;
+        }
+        const UiRect bounds =
+            IndicatorBounds(portrait_width, portrait_height, state, indicator_slot);
+        DrawScaledPortraitMonoAsset(framebuffer, raw_width, raw_height, portrait_width,
+                                    portrait_height, bounds, indicator->icon,
+                                    design::color::kBlack);
+        if (indicator->slashed) {
+            DrawSlash(framebuffer, raw_width, raw_height, portrait_width, portrait_height, bounds);
+        }
+        ++indicator_slot;
     }
 
     const UiRect mic_bounds = MicBounds(portrait_width, portrait_height, state);

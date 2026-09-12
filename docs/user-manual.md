@@ -91,7 +91,10 @@ This is the core interaction:
    for quick captures, not long dictation. If you keep holding past 10
    seconds, it stops automatically.
 3. **Release the Record button.** You'll hear a stop cue, and Folloup
-   immediately plays your recording back to you.
+   immediately plays your recording back to you. You can turn that
+   playback off in [Sound & Recording](#sound--recording) if you'd
+   rather go straight to tagging — you can still discard the recording
+   either way.
 4. **Choose a tag**, from a menu with five options:
    - **Note** — a general thought.
    - **Task** — something to do. (This is what shows up on the **Todos**
@@ -106,7 +109,9 @@ This is the core interaction:
      same as Discard below.
    - **Discard** — throws the recording away. Nothing is saved to the SD
      card if you pick this — that's exactly why the review-then-tag order
-     exists: you get to hear it back before deciding.
+     exists: you get to hear it back before deciding. (If you've turned
+     playback off, Discard still works the same way — the recording
+     isn't written to the card until you tag it.)
 5. If you tagged it Note, Task, or Idea, and Folloup has WiFi and a
    Gemini key configured, it transcribes the recording in the
    background — you'll see a brief "Transcribing recording..." message,
@@ -244,7 +249,7 @@ with this topic yet" and no Summarize button.
 
 ## Settings
 
-Settings is a hub, like a phone's settings app: five headings, each
+Settings is a hub, like a phone's settings app: six headings, each
 opening its own page, plus one action below them:
 
 - **Network** — WiFi and Access Point.
@@ -252,6 +257,7 @@ opening its own page, plus one action below them:
 - **Storage** — SD card status and management.
 - **Todos** — todo archiving.
 - **Topics** — create, rename, and delete topics.
+- **Sound & Recording** — button sounds and recording playback.
 - **Manual** — replays the first-time onboarding carousel. This one isn't
   a heading — it's a direct action, since there's nothing to configure on
   it.
@@ -303,6 +309,40 @@ active list before auto-archiving (see [Archiving completed
 Todos](#archiving-completed-todos)). Choices are 7, 14, 30, 60, or 90
 days, or **Never** to turn off automatic archiving entirely (you can
 still archive individual items manually). Default is 7 days.
+
+### Sound & Recording
+
+Two switches:
+
+1. **Button sounds** — turn off the sounds Folloup plays as you use it:
+   button presses, locking and unlocking, menus opening, the startup and
+   shutdown chimes, and error alerts. Useful in a quiet room or a shared
+   office.
+
+   Two sounds deliberately keep playing: the **start and stop cues when
+   you record**. Those aren't decoration — they're how you know a
+   recording actually began and ended while you're holding the button
+   and not looking at the screen.
+
+   Toggling this off plays one last click, so you know the press
+   registered.
+
+2. **Play back after recording** — by default, Folloup replays your
+   recording to you the moment you release the Record button, before
+   showing the tag menu. Turn this off to skip straight to tagging.
+
+   You don't lose the ability to throw away a bad take: nothing is
+   written to the SD card until you pick a tag, so **Discard** works
+   exactly the same. What you give up is hearing the recording before
+   you decide.
+
+When either switch is off, a small crossed-out icon appears at the
+bottom-right of the screen, just left of the microphone icon — so you can
+tell at a glance that sounds are muted or that playback is skipped,
+without opening Settings. The icons disappear when the switches are back
+on.
+
+Both switches are remembered when you power off.
 
 ### Manage topics
 

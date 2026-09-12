@@ -82,10 +82,12 @@ NavigationModel BuildSettingsPageNavigationModel()
             NavigationItemRole::kSettingsMenuTodos, 3);
     AddItem(model, NavigationItemSection::kSettingsPageMenu,
             NavigationItemRole::kSettingsMenuTopics, 4);
+    AddItem(model, NavigationItemSection::kSettingsPageMenu,
+            NavigationItemRole::kSettingsMenuSound, 5);
     AddItem(model,
             NavigationItemSection::kSettingsPageMenu,
             NavigationItemRole::kSettingsManualOnboardingButton,
-            5);
+            6);
     AddFooterItems(model, /*is_home_screen=*/false);
     return model;
 }
@@ -182,6 +184,21 @@ NavigationModel BuildSettingsTodosPageNavigationModel()
             NavigationItemRole::kSettingsTodosArchiveAfterInput, 0);
     AddItem(model, NavigationItemSection::kSettingsTodosPageControls,
             NavigationItemRole::kSettingsTodosBackButton, 1);
+    AddFooterItems(model, /*is_home_screen=*/false);
+    return model;
+}
+
+NavigationModel BuildSettingsSoundPageNavigationModel()
+{
+    NavigationModel model = {};
+    model.scope = NavigationScope::kSettingsSound;
+
+    AddItem(model, NavigationItemSection::kSettingsSoundPageControls,
+            NavigationItemRole::kSettingsSoundFeedbackToggle, 0);
+    AddItem(model, NavigationItemSection::kSettingsSoundPageControls,
+            NavigationItemRole::kSettingsSoundReviewPlaybackToggle, 1);
+    AddItem(model, NavigationItemSection::kSettingsSoundPageControls,
+            NavigationItemRole::kSettingsSoundBackButton, 2);
     AddFooterItems(model, /*is_home_screen=*/false);
     return model;
 }

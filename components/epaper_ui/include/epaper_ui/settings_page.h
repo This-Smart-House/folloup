@@ -12,9 +12,9 @@
 
 namespace epaper_ui {
 
-// Settings is a hub: 5 headings, each navigating to a dedicated sub-page, in this fixed slot
+// Settings is a hub: 6 headings, each navigating to a dedicated sub-page, in this fixed slot
 // order (must match kSettingsMenuLabels in settings_page.cpp).
-inline constexpr int kSettingsMenuItemCount = 5;
+inline constexpr int kSettingsMenuItemCount = 6;
 
 enum class SettingsMenuItem : int {
     kNetwork = 0,
@@ -22,6 +22,7 @@ enum class SettingsMenuItem : int {
     kStorage,
     kTodos,
     kTopics,
+    kSound,
 };
 
 struct SettingsPageMenuState {
@@ -35,7 +36,7 @@ struct SettingsPageState {
     std::string_view title_text = "Settings";
     SettingsPageMenuState menu = {};
     // Replays the onboarding carousel -- a one-shot action, not a heading, so it sits below the
-    // menu rather than being one of the 4 headings above.
+    // menu rather than being one of the headings above.
     ButtonState manual_button = {};
 
     bool operator==(const SettingsPageState& other) const = default;

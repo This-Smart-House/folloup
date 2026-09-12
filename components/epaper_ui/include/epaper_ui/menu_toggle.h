@@ -27,6 +27,11 @@ struct MenuToggleStyle {
     int horizontal_padding = design::menu_toggle::kHorizontalPadding;
     int control_gap = design::menu_toggle::kControlGap;
     int bottom_border_thickness = design::menu_toggle::kBottomBorderThickness;
+    // Labels are drawn on one line by default and are NOT clipped, so a label wider than the
+    // space left of the toggle will run underneath it. Raise this to let a long label wrap, and
+    // raise `height` to match -- at the default label role two lines need roughly 80pt, more
+    // than the default 72pt row.
+    int max_label_lines = 1;
     ToggleStyle toggle = {};
 };
 

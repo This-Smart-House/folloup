@@ -4,8 +4,10 @@
 
 #include "esp_check.h"
 #include "esp_log.h"
+#include "feedback_service.h"
 #include "project_assets.h"
 #include "recording_service.h"
+#include "recording_session_service.h"
 #include "ui_refresh_runtime.h"
 
 namespace footer_runtime {
@@ -164,6 +166,14 @@ epaper_ui::GlobalFooterState BuildState()
     state.mic.idle_icon = project_assets::GetIcon(EmbeddedIconId::kMicOff);
     state.mic.active_icon = project_assets::GetIcon(EmbeddedIconId::kMicOn);
     state.mic.active = IsMicActive();
+
+    // Persistent "this is switched off" glyphs, shown only in the off state so the footer stays
+    // quiet by default. Read from the owning services rather than mirrored, same as the settings
+    // page rows.
+    state.sound_muted.visible = !feedback_service::IsSoundEnabled();
+    state.sound_muted.icon = project_assets::GetIcon(EmbeddedIconId::kAudio);
+    state.playback_off.visible = !recording_session_service::IsReviewPlaybackEnabled();
+    state.playback_off.icon = project_assets::GetIcon(EmbeddedIconId::kFileAudio);
 
     ApplyProjectedSelection(&state, projection.focused_item);
     return state;

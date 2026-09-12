@@ -11,7 +11,14 @@ constexpr NavigationItemRole kMenuRoles[epaper_ui::kSettingsMenuItemCount] = {
     NavigationItemRole::kSettingsMenuStorage,
     NavigationItemRole::kSettingsMenuTodos,
     NavigationItemRole::kSettingsMenuTopics,
+    NavigationItemRole::kSettingsMenuSound,
 };
+
+// This array is sized by kSettingsMenuItemCount, so adding a menu item without adding its role
+// here leaves a zero-initialised kUnknown slot: it compiles, and the new row simply never
+// highlights because no role ever matches it. Catch that at build time instead.
+static_assert(kMenuRoles[epaper_ui::kSettingsMenuItemCount - 1] != NavigationItemRole::kUnknown,
+              "kMenuRoles needs one entry per settings menu item");
 
 }  // namespace
 

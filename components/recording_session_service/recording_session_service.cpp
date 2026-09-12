@@ -12,6 +12,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "gemini_service.h"
+#include "nvs.h"
 #include "playback_service.h"
 #include "storage_service.h"
 #include "system_sound_service.h"
@@ -21,6 +22,28 @@ namespace recording_session_service {
 namespace {
 
 constexpr const char* kTag = "RecordingSession";
+constexpr const char* kNvsNamespace = "recording";
+constexpr const char* kReviewPlaybackKey = "review_pb";
+
+// Cached rather than read per take, and defaulted to on so existing devices keep the
+// review-before-save behaviour they already have until the user turns it off.
+std::atomic<bool> s_review_playback_enabled{true};
+
+bool LoadReviewPlaybackFromNvs()
+{
+    nvs_handle_t handle = 0;
+    if (nvs_open(kNvsNamespace, NVS_READONLY, &handle) != ESP_OK) {
+        return true;
+    }
+    uint8_t enabled = 1;
+    const esp_err_t err = nvs_get_u8(handle, kReviewPlaybackKey, &enabled);
+    nvs_close(handle);
+    if (err != ESP_OK) {
+        return true;
+    }
+    return enabled != 0;
+}
+
 constexpr const char* kIdleStatus = "Hold POWER to record";
 constexpr const char* kArmedStatus = "Keep holding to record";
 constexpr const char* kRecordingStatus = "Recording";
@@ -342,6 +365,13 @@ void HandleStopCueResult(uint32_t token, SoundCuePlaybackResult result)
         return;
     }
 
+    // Review playback is optional. With it off, skip straight to the tag menu -- the clip is
+    // still unsaved either way, so Discard remains the escape hatch for a bad take.
+    if (!IsReviewPlaybackEnabled()) {
+        AdvanceToTagSelection("review playback disabled");
+        return;
+    }
+
     clip = recording_service::GetRecordedClip();
     if (!StartClipPlayback(clip)) {
         AdvanceToTagSelection("playback unavailable");
@@ -451,7 +481,36 @@ esp_err_t Init()
     s_initialized = true;
     s_snapshot.initialized = recording_service::IsInitialized();
     s_snapshot.max_recording_ms = recording_service::GetUiState().max_recording_ms;
+    s_review_playback_enabled.store(LoadReviewPlaybackFromNvs(), std::memory_order_relaxed);
+    ESP_LOGI(kTag, "Recording session initialized (review playback %s)",
+             s_review_playback_enabled.load(std::memory_order_relaxed) ? "on" : "off");
     ResetToIdleLocked();
+    return ESP_OK;
+}
+
+bool IsReviewPlaybackEnabled()
+{
+    return s_review_playback_enabled.load(std::memory_order_relaxed);
+}
+
+esp_err_t SetReviewPlaybackEnabled(bool enabled)
+{
+    nvs_handle_t handle = 0;
+    if (nvs_open(kNvsNamespace, NVS_READWRITE, &handle) != ESP_OK) {
+        ESP_LOGW(kTag, "Review playback setting: nvs_open failed");
+        return ESP_FAIL;
+    }
+    esp_err_t err = nvs_set_u8(handle, kReviewPlaybackKey, enabled ? 1 : 0);
+    if (err == ESP_OK) {
+        err = nvs_commit(handle);
+    }
+    nvs_close(handle);
+    if (err != ESP_OK) {
+        ESP_LOGW(kTag, "Review playback setting: persist failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    s_review_playback_enabled.store(enabled, std::memory_order_relaxed);
+    ESP_LOGI(kTag, "Review playback %s", enabled ? "enabled" : "disabled");
     return ESP_OK;
 }
 

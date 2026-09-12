@@ -38,6 +38,17 @@ struct FooterMicState {
     const EmbeddedImageAsset* active_icon = nullptr;
 };
 
+// A small, non-focusable status glyph drawn to the left of the mic. Unlike FooterButtonState
+// these are not navigable -- they report a setting, they aren't a control -- so they carry no
+// selected state and no navigation role.
+struct FooterStatusIndicatorState {
+    bool visible = false;
+    const EmbeddedImageAsset* icon = nullptr;
+    // Draws a diagonal slash across the icon, the "turned off" reading. There is no dedicated
+    // muted/disabled art in the asset set, so the slash is what carries the negation.
+    bool slashed = true;
+};
+
 struct GlobalFooterState {
     bool visible = false;
     FooterButtonState home = {};
@@ -47,6 +58,9 @@ struct GlobalFooterState {
     FooterButtonState folder = {};
     FooterButtonState sticky = {};
     FooterMicState mic = {};
+    // Right-hand status glyphs, laid out right-to-left immediately left of the mic.
+    FooterStatusIndicatorState sound_muted = {};
+    FooterStatusIndicatorState playback_off = {};
 };
 
 UiRect GlobalFooterBounds(int portrait_width, int portrait_height, const GlobalFooterState& state);
