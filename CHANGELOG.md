@@ -7,6 +7,33 @@ via `git log`, not backfilled here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-12
+
+### Changed
+
+- Transcription no longer blocks recording. Every Note, Task, or Idea is now
+  saved flagged pending and transcribed by the background retry sweeper, the
+  same path offline recordings already used, so a new take can start
+  immediately instead of waiting out an inline upload. The obsolete
+  "Wait for transcription to finish" guard is removed: the clip is written to the
+  card and the capture buffer released before any upload begins, so an in-flight
+  transcription shares nothing with a new take. Completion is confirmed by the
+  existing "note transcribed" toast. The sweep is only triggered while Wi-Fi and
+  Gemini are both up, so offline recordings still wait for reconnect rather than
+  spending their single attempt.
+
+### Fixed
+
+- A recording saved while a transcription batch was running was never collected
+  until the next Wi-Fi or Gemini reconnect, because the batch only enumerates
+  pending recordings when it starts. Batch completion now re-triggers a sweep.
+  Making that work exposed two bugs in `transcription_retry_service`: its batch
+  guard was released *after* subscribers were notified, so any follow-up request
+  from the completion handler was always refused; and the completion event was
+  delivered while holding `s_mutex`, which would deadlock the retry task once the
+  handler called `RetryPending()`. The guard is now released first and completion
+  is delivered outside the lock.
+
 ## [0.4.0] - 2026-09-12
 
 ### Added

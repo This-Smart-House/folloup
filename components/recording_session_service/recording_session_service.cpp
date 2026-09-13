@@ -55,6 +55,7 @@ constexpr const char* kSavingStatus = "Saving recording";
 constexpr const char* kTranscribingStatus = "Transcribing recording";
 constexpr const char* kSavedWithoutTranscriptStatus =
     "Recording saved without transcription";
+constexpr const char* kQueuedForTranscriptionStatus = "Saved, transcribing in background";
 constexpr const char* kDiscardedStatus = "Recording discarded";
 constexpr const char* kAddingTopicStatus = "Adding topic";
 constexpr uint32_t kMinTranscriptionDurationMs = 500;
@@ -196,9 +197,11 @@ BlockedReason EvaluateBlockedReason(const Context& context)
     if (!recording_service::IsInitialized()) {
         return BlockedReason::kRecorderUnavailable;
     }
-    if (transcription_service::GetSnapshot().request_in_flight) {
-        return BlockedReason::kTranscriptionInFlight;
-    }
+    // Deliberately NOT blocked on transcription_service::request_in_flight any more. That guard
+    // was correct while transcription ran inline holding the just-captured clip; now the clip is
+    // written to the card and the capture buffer released before any upload starts, so an
+    // in-flight transcription shares nothing with a new take. A recording made during an upload
+    // is simply saved pending and collected by the next sweep.
     return BlockedReason::kNone;
 }
 
@@ -817,7 +820,10 @@ bool SubmitTagSelection(int selected_index)
     options.tag = kTagOptions[static_cast<size_t>(selected_index)].tag;
     const bool gemini_ready = s_network_connected.load(std::memory_order_relaxed) &&
                               gemini_service::GetSnapshot().runtime.ready;
-    options.pending_transcription = !gemini_ready;
+    // Always flagged pending, not just when offline. Transcription is owned by the background
+    // sweeper for every recording now, which is what frees the user to start another take
+    // immediately instead of waiting out an inline transcribe.
+    options.pending_transcription = true;
     ESP_LOGI(kTag,
              "Starting archive save: tag=%s samples=%u duration_ms=%lu",
              recording_archive_service::TagName(options.tag),
@@ -852,34 +858,20 @@ bool SubmitTagSelection(int selected_index)
         s_pending_recording_id = save_result.recording_id;
     }
 
-    if (should_transcribe && transcription_service::BeginTranscription(clip)) {
-        recording_service::DiscardClip();
-        std::lock_guard<std::mutex> lock(s_mutex);
-        s_snapshot.phase = Phase::kTranscribing;
-        s_snapshot.request_in_flight = true;
-        s_snapshot.last_status_message = kTranscribingStatus;
-        s_snapshot.last_error_code.clear();
-        s_snapshot.last_error_message.clear();
-        NotifyLocked();
-        return true;
-    }
-
-    if (should_transcribe) {
-        ESP_LOGW(kTag,
-                 "Transcription did not start after save: id=%s",
-                 save_result.recording_id.empty() ? "<none>" : save_result.recording_id.c_str());
-    }
-
+    // The take is on the card and flagged pending; the session ends here rather than sitting in
+    // kTranscribing. app_shell kicks transcription_retry_service when the archive reports pending
+    // work and the network is up, so the upload happens on the retry task while the mic is free.
     recording_service::DiscardClip();
     {
         std::lock_guard<std::mutex> lock(s_mutex);
         s_snapshot.request_in_flight = false;
         s_snapshot.phase = save_result.clip_saved ? Phase::kComplete : Phase::kFailed;
-        s_snapshot.last_status_message = save_result.clip_saved
-                                             ? kSavedWithoutTranscriptStatus
-                                             : (save_result.status_message.empty()
-                                                    ? "Save failed"
-                                                    : save_result.status_message);
+        s_snapshot.last_status_message =
+            save_result.clip_saved
+                ? (should_transcribe ? kQueuedForTranscriptionStatus
+                                     : kSavedWithoutTranscriptStatus)
+                : (save_result.status_message.empty() ? "Save failed"
+                                                      : save_result.status_message);
         s_snapshot.last_error_code = save_result.error_code;
         s_snapshot.last_error_message = save_result.error_message;
         if (save_result.clip_saved && !save_result.error_code.empty()) {

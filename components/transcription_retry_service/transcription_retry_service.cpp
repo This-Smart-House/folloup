@@ -152,6 +152,20 @@ void RunTranscriptionRetryJob()
         ESP_LOGW(kTag, "Retry batch aborted: archive listing failed (%s)", esp_err_to_name(status));
     }
 
+    // Released BEFORE subscribers are notified. The batch's work is done by this point -- only
+    // logging and task teardown remain -- and a handler reacting to "batch complete" by asking
+    // for another batch (e.g. to pick up a recording saved while this one was running, which was
+    // never in the list enumerated at the top of this function) would otherwise be refused by a
+    // guard that still claimed a batch was in flight.
+    s_batch_in_flight.store(false, std::memory_order_release);
+
+    // Notified OUTSIDE s_mutex, unlike the other NotifyLocked call sites. NotifyLocked runs the
+    // handler synchronously, and the completion handler is exactly the one that may call
+    // RetryPending() -- which takes s_mutex itself. std::mutex is not recursive, so notifying
+    // under the lock here would deadlock this task the first time a follow-up batch is requested.
+    EventHandler handler = nullptr;
+    void* context = nullptr;
+    Event event = {};
     {
         std::lock_guard<std::mutex> lock(s_mutex);
         s_snapshot.batch_in_flight = false;
@@ -159,12 +173,16 @@ void RunTranscriptionRetryJob()
         s_snapshot.last_batch_succeeded = succeeded;
         s_snapshot.last_batch_failed = failed;
         s_snapshot.last_batch_generation++;
-        NotifyLocked();
+        handler = s_event_handler;
+        context = s_event_context;
+        event = {.snapshot = s_snapshot};
+    }
+    if (handler != nullptr) {
+        handler(event, context);
     }
 
     ESP_LOGI(kTag, "Retry batch complete: attempted=%d succeeded=%d failed=%d", attempted, succeeded,
              failed);
-    s_batch_in_flight.store(false, std::memory_order_release);
 }
 
 void RetryTaskEntry(void*)

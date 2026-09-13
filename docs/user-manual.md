@@ -112,12 +112,19 @@ This is the core interaction:
      exists: you get to hear it back before deciding. (If you've turned
      playback off, Discard still works the same way — the recording
      isn't written to the card until you tag it.)
-5. If you tagged it Note, Task, or Idea, and Folloup has WiFi and a
-   Gemini key configured, it transcribes the recording in the
-   background — you'll see a brief "Transcribing recording..." message,
-   then either a transcript being saved or a note that transcription
-   failed. Topic and Discard skip this: Topic transcribes immediately to
-   produce its name (see above), and Discard has nothing to transcribe.
+5. If you tagged it Note, Task, or Idea, Folloup saves it and hands the
+   transcription off to the background — you'll see "Saved, transcribing
+   in background," and **you can press Record again straight away**
+   instead of waiting. When the transcript lands you'll get a short
+   "note transcribed" message. Record several in a row and they're
+   transcribed one after another. Topic and Discard skip this: Topic
+   transcribes immediately to produce its name (see above), and Discard
+   has nothing to transcribe.
+
+   If a transcription fails — WiFi dropping mid-upload, for example —
+   the recording itself is still saved. You'll see a "needs manual
+   retry" message; open the recording and use **Transcribe** to try
+   again.
 
 **If you're offline when you record**, the clip still saves to the SD
 card — it just gets marked as pending. The moment Folloup reconnects to

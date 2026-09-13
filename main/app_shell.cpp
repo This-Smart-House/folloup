@@ -1815,6 +1815,16 @@ void InitTimezoneService()
 void HandleRecordingArchiveEvent(const recording_archive_service::Event& event, void*)
 {
     const int pending = event.snapshot.pending_transcription_count;
+
+    // Recordings are saved flagged pending and transcribed by the retry sweeper rather than
+    // inline, so this is the trigger for the normal case as well as the offline backlog. Gated on
+    // the same two conditions the Wi-Fi and Gemini edges use: firing while offline would spend the
+    // single attempt RetryOne allows, marking the recording failed instead of leaving it queued
+    // for reconnect. RetryPending is a no-op when nothing is pending or a batch is already running.
+    if (pending > 0 && s_wifi_connected.load(std::memory_order_relaxed) &&
+        s_gemini_ready.load(std::memory_order_relaxed)) {
+        (void)transcription_retry_service::RetryPending();
+    }
     if (s_last_status_bar_pending_transcription_count.exchange(pending, std::memory_order_relaxed) !=
         pending) {
         const esp_err_t status_bar_err =
@@ -1986,6 +1996,15 @@ void HandleTranscriptionRetryEvent(const transcription_retry_service::Event& eve
                std::to_string(s.last_batch_failed) +
                (s.last_batch_failed == 1 ? " needs manual retry" : " need manual retry");
     }
+    // A recording saved while this batch was running was not in the list the batch enumerated,
+    // so it is still pending and nothing else will collect it until some later edge. Re-trigger
+    // here, now that batch_in_flight has cleared. RetryPending is a no-op when nothing is pending.
+    if (recording_archive_service::GetSnapshot().pending_transcription_count > 0 &&
+        s_wifi_connected.load(std::memory_order_relaxed) &&
+        s_gemini_ready.load(std::memory_order_relaxed)) {
+        (void)transcription_retry_service::RetryPending();
+    }
+
     const esp_err_t err =
         overlay_runtime::ShowToastForDuration(BuildToast(text.c_str(), icon), 2500);
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
